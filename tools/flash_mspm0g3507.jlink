@@ -1,0 +1,12 @@
+device MSPM0G3507
+si SWD
+speed 1000
+SetRESET
+Sleep 100
+ShowHWStatus
+connect
+h
+loadfile Debug/LED1.hex
+r
+g
+exit

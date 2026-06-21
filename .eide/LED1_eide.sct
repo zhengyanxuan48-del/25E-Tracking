@@ -1,0 +1,13 @@
+; EIDE native-link placeholder scatter file.
+; The real firmware image is built by the root makefile and Debug/device_linker.cmd.
+
+LR_IROM1 0x08000000 0x00010000 {
+    ER_IROM1 0x08000000 0x00010000 {
+        *(InRoot$$Sections)
+        .ANY (+RO)
+        .ANY (+XO)
+    }
+    RW_IRAM1 0x20000000 0x00005000 {
+        .ANY (+RW +ZI)
+    }
+}

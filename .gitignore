@@ -1,0 +1,27 @@
+# ---- 编译输出 / Build output ----
+build_eide/
+Debug/
+Release/
+*.o
+*.obj
+*.out
+*.map
+*.lst
+*.d
+
+# ---- IDE / 工具本地数据 ----
+.ti-localappdata/
+.clangd/
+.cache/
+
+# ---- 日志 / 临时文件 ----
+*.log
+debug.log
+
+# ---- 厂商器件包（可重新下载，如需自包含备份可删掉下面这行）----
+.pack/
+
+# ---- 操作系统杂项 ----
+Thumbs.db
+desktop.ini
+.DS_Store

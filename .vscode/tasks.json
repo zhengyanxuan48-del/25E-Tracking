@@ -1,0 +1,149 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "cwd": "${workspaceFolder}",
+    "env": {
+      "MSPM0_SDK_INSTALL_DIR": "d:/TI-MPSM0/ti/mspm0_sdk_2_10_00_04",
+      "TICLANG_ARMCOMPILER": "d:/TI-MPSM0/ti/ccs2050/ccs/tools/compiler/ti-cgt-armllvm_4.0.4.LTS",
+      "SYSCONFIG_TOOL": "d:/TI-MPSM0/ti/ccs2050/ccs/utils/sysconfig_1.27.0/sysconfig_cli.bat"
+    }
+  },
+  "tasks": [
+    {
+      "label": "MSPM0: Build",
+      "type": "shell",
+      "command": "d:/TI-MPSM0/ti/ccs2050/ccs/utils/bin/gmake.exe",
+      "args": ["-f", "makefile", "all", "SHELL=cmd.exe"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": {
+        "owner": "tiarmclang",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "MSPM0: Build Task1",
+      "type": "shell",
+      "command": "d:/TI-MPSM0/ti/ccs2050/ccs/utils/bin/gmake.exe",
+      "args": ["-f", "makefile", "task1", "SHELL=cmd.exe"],
+      "problemMatcher": {
+        "owner": "tiarmclang",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "MSPM0: Build Pan Tilt Debug",
+      "type": "shell",
+      "command": "d:/TI-MPSM0/ti/ccs2050/ccs/utils/bin/gmake.exe",
+      "args": ["-f", "makefile", "pan_tilt_debug", "SHELL=cmd.exe"],
+      "problemMatcher": {
+        "owner": "tiarmclang",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "MSPM0: Generate SysConfig",
+      "type": "shell",
+      "command": "d:/TI-MPSM0/ti/ccs2050/ccs/utils/bin/gmake.exe",
+      "args": ["-f", "makefile", "syscfg", "SHELL=cmd.exe"],
+      "problemMatcher": []
+    },
+    {
+      "label": "MSPM0: Clean",
+      "type": "shell",
+      "command": "d:/TI-MPSM0/ti/ccs2050/ccs/utils/bin/gmake.exe",
+      "args": ["-f", "makefile", "clean", "SHELL=cmd.exe"],
+      "problemMatcher": []
+    },
+    {
+      "label": "MSPM0: Rebuild",
+      "dependsOrder": "sequence",
+      "dependsOn": ["MSPM0: Clean", "MSPM0: Build"],
+      "problemMatcher": []
+    },
+    {
+      "label": "MSPM0: Flash UART BSL Web",
+      "type": "shell",
+      "detail": "Open LCKFB MSPM0 Web Flasher. Use ROM BSL default 9600 bps for initial connection, then set/select target BSL baud rate 115200 bps for flashing.",
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "start",
+        "",
+        "https://wiki.lckfb.com/storage/html/mspm0-web-flasher/index.html"
+      ],
+      "dependsOn": "MSPM0: Build",
+      "problemMatcher": []
+    },
+    {
+      "label": "MSPM0: Flash UART BSL file path",
+      "type": "shell",
+      "detail": "Print the HEX path and the required UART BSL baud-rate flow.",
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "echo Use this file in the LCKFB MSPM0 Web Flasher: ${workspaceFolder}\\Debug\\LED1.hex & echo BSL flow: initial connect at 9600 bps, then Change Baud Rate / Baud Rate target = 115200 bps for erase/program/verify."
+      ],
+      "dependsOn": "MSPM0: Build",
+      "problemMatcher": []
+    },
+    {
+      "label": "MSPM0: Flash",
+      "type": "shell",
+      "detail": "Build Debug/LED1.hex, then flash MSPM0G3507 through J-Link OB using tools/flash_mspm0g3507_jlink.ps1.",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/flash_mspm0g3507_jlink.ps1",
+        "-Build"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "MSPM0: Flash Pan Tilt Debug",
+      "type": "shell",
+      "detail": "Build the pan-tilt debug HEX, then flash it without rebuilding the default task1 image.",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "tools/flash_mspm0g3507_jlink.ps1"
+      ],
+      "dependsOn": "MSPM0: Build Pan Tilt Debug",
+      "problemMatcher": []
+    }
+  ]
+}

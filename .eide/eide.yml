@@ -1,0 +1,195 @@
+version: "4.1"
+name: LED1
+type: ARM
+deviceName: null
+packDir: .pack/GigaDevice/GD32E10x_DFP.1.0.3
+srcDirs: []
+virtualFolder:
+  name: <virtual_root>
+  files: []
+  folders:
+    - name: Application
+      files:
+        - path: debug_uart.h
+        - path: platform_i2c.h
+        - path: platform_time.h
+        - path: i2c_diag.h
+      folders: []
+    - name: Hardware
+      files:
+        - path: Hardware/dmpKey.h
+        - path: Hardware/dmpmap.h
+        - path: Hardware/encoder.h
+        - path: Hardware/inv_mpu.h
+        - path: Hardware/inv_mpu_dmp_motion_driver.h
+        - path: Hardware/key.h
+        - path: Hardware/motor.h
+        - path: Hardware/motor_open_loop_test.h
+        - path: Hardware/motor_test.h
+        - path: Hardware/MPU6050.h
+        - path: Hardware/OLED.h
+        - path: Hardware/OLED_Data.h
+        - path: Hardware/task1.h
+        - path: Hardware/track.h
+      folders: []
+    - name: Build_System
+      files:
+        - path: makefile
+        - path: empty.syscfg
+        - path: tools/eide_shell_dummy.c
+        - path: .ccsproject
+        - path: .cproject
+        - path: .project
+        - path: .clangd
+      folders: []
+    - name: Generated_Debug
+      files:
+        - path: Debug/ti_msp_dl_config.h
+        - path: Debug/device_linker.cmd
+        - path: Debug/device.opt
+        - path: Debug/LED1.hex
+        - path: Debug/LED1.out
+      folders: []
+    - name: Flash_Tools
+      files:
+        - path: tools/flash_mspm0g3507.jlink
+        - path: tools/flash_mspm0g3507_jlink.ps1
+        - path: FLASH_TIANMENGXING.md
+        - path: docs/eide_jlink_setup.md
+      folders: []
+dependenceList: []
+outDir: build_eide
+miscInfo:
+  uid: led1_mspm0g3507_external_make
+targets:
+  Debug:
+    cppPreprocessAttrs:
+      defineList:
+        - __MSPM0G3507__
+        - DeviceFamily_MSPM0G350X
+        - APP_MODE_TASK1=1
+        - SYSCONFIG_WEAK=__weak
+      incList:
+        - .
+        - Hardware
+        - Debug
+        - d:/TI-MPSM0/ti/mspm0_sdk_2_10_00_04/source/ti/driverlib
+        - d:/TI-MPSM0/ti/mspm0_sdk_2_10_00_04/source
+        - d:/TI-MPSM0/ti/mspm0_sdk_2_10_00_04/source/third_party/CMSIS/Core/Include
+      libList: []
+    excludeList:
+      - empty.c
+      - debug_uart.c
+      - platform_i2c.c
+      - platform_time.c
+      - i2c_diag.c
+      - Hardware/encoder.c
+      - Hardware/inv_mpu.c
+      - Hardware/inv_mpu_dmp_motion_driver.c
+      - Hardware/key.c
+      - Hardware/motor.c
+      - Hardware/motor_open_loop_test.c
+      - Hardware/motor_test.c
+      - Hardware/MPU6050.c
+      - Hardware/OLED.c
+      - Hardware/OLED_Data.c
+      - Hardware/task1.c
+      - Hardware/track.c
+      - Debug/ti_msp_dl_config.c
+    settings:
+      debugger: cortex-debug
+    toolchain: AC5
+    toolchainConfigMap:
+      AC5:
+        archExtensions: ""
+        cpuType: Cortex-M0+
+        floatingPointHardware: none
+        options:
+          version: 4
+          afterBuildTasks: []
+          asm-compiler: {}
+          beforeBuildTasks:
+            - name: external make build
+              command: d:/TI-MPSM0/ti/ccs2050/ccs/utils/bin/gmake.exe -f makefile all SHELL=cmd.exe
+              stopBuildAfterFailed: true
+          c/cpp-compiler:
+            CXX_FLAGS: --diag_suppress=1 --diag_suppress=66 --diag_suppress=1295
+            C_FLAGS: --diag_suppress=1 --diag_suppress=66 --diag_suppress=1295
+            c99-mode: true
+            one-elf-section-per-function: true
+            optimization: level-0
+          global:
+            output-debug-info: enable
+            use-microLIB: false
+          linker:
+            $outputTaskExcludes:
+              - .bin
+              - .hex
+              - .s19
+            output-format: elf
+        scatterFilePath: .eide/LED1_eide.sct
+        storageLayout:
+          RAM:
+            - id: 1
+              isChecked: true
+              mem:
+                size: "0x5000"
+                startAddr: "0x20000000"
+              noInit: false
+              tag: IRAM
+          ROM:
+            - id: 1
+              isChecked: true
+              isStartup: true
+              mem:
+                size: "0x10000"
+                startAddr: "0x08000000"
+              tag: IROM
+        useCustomScatterFile: true
+      GCC:
+        archExtensions: ""
+        cpuType: Cortex-M0+
+        floatingPointHardware: none
+        options:
+          version: 5
+          afterBuildTasks: []
+          asm-compiler:
+            ASM_FLAGS: ""
+          beforeBuildTasks:
+            - name: external make build
+              command: d:/TI-MPSM0/ti/ccs2050/ccs/utils/bin/gmake.exe -f makefile all SHELL=cmd.exe
+              stopBuildAfterFailed: true
+          c/cpp-compiler:
+            C_FLAGS: ""
+            language-c: c11
+            language-cpp: c++11
+            one-elf-section-per-data: true
+            one-elf-section-per-function: true
+            optimization: level-debug
+            warnings: all-warnings
+          global:
+            output-debug-info: enable
+          linker:
+            LD_FLAGS: ""
+            output-format: elf
+            remove-unused-input-sections: true
+        scatterFilePath: ""
+        storageLayout:
+          RAM: []
+          ROM: []
+        useCustomScatterFile: false
+    uploadConfigMap:
+      Custom:
+        bin: Debug/LED1.hex
+        commandLine: powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/flash_mspm0g3507_jlink.ps1 -Build
+        eraseChipCommand: ""
+      JLink:
+        baseAddr: ""
+        bin: Debug/LED1.hex
+        cpuInfo:
+          cpuName: MSPM0G3507
+          vendor: TI
+        otherCmds: ""
+        proType: 1
+        speed: 1000
+    uploader: JLink

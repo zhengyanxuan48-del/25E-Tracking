@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Tianmengxing MSPM0G3507: Build HEX",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "d:/TI-MPSM0/ti/ccs2050/ccs/utils/bin/gmake.exe -f makefile all",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Debug MSPM0G3507 J-Link",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "jlink",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/Debug/LED1.out",
+      "device": "MSPM0G3507",
+      "interface": "swd",
+      "runToEntryPoint": "main",
+      "serverpath": "D:/24电赛h题/25E/New Folder/JLink_V950/JLinkGDBServerCL.exe",
+      "gdbPath": "C:/Users/32645/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+      "svdFile": "",
+      "showDevDebugOutput": "none",
+      "preLaunchTask": "MSPM0: Build"
+    }
+  ]
+}

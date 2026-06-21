@@ -1,0 +1,35 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "files.associations": {
+            ".eideignore": "ignore",
+            "*.a51": "a51",
+            "*.h": "c",
+            "*.c": "c",
+            "*.hxx": "cpp",
+            "*.hpp": "cpp",
+            "*.c++": "cpp",
+            "*.cpp": "cpp",
+            "*.cxx": "cpp",
+            "*.cc": "cpp"
+        },
+        "files.autoGuessEncoding": true,
+        "C_Cpp.default.configurationProvider": "cl.eide",
+        "[yaml]": {
+            "editor.insertSpaces": true,
+            "editor.tabSize": 4,
+            "editor.autoIndent": "advanced"
+        }
+    },
+    "extensions": {
+        "recommendations": [
+            "cl.eide",
+            "marus25.cortex-debug",
+            "ms-vscode.vscode-serial-monitor"
+        ]
+    }
+}
