@@ -87,7 +87,11 @@
 #else
 #define APP_FW_TAG      "idle"
 #endif
-#define MPU_READ_MS     (20U)
+#if APP_MODE_TASK1
+#define MPU_READ_MS     (10U) // 调试参数：Task1 角度环 MPU 读取周期，缩短后提高 90 度转向反馈速度
+#else
+#define MPU_READ_MS     (20U) // 调试参数：非 Task1 模式 MPU 读取周期，保持原有 20ms 节奏
+#endif
 #define TRACK_READ_MS   (5U)
 #define TRACK_UART_MS   (200U)
 #define TRACK_TEST_OLED_MS (100U)
@@ -102,14 +106,16 @@ static uint32_t g_next_mpu_ms;
 static uint32_t g_last_mpu_ms;
 #endif
 
-#if (MOTOR_OPEN_LOOP_TEST == 0U) && (APP_MODE_PAN_TILT_DEBUG == 0U)
+#if (MOTOR_OPEN_LOOP_TEST == 0U) && (APP_MODE_PAN_TILT_DEBUG == 0U) && \
+    (APP_MODE_TASK1 == 0U)
 static uint32_t g_next_track_ms;
 static uint32_t g_next_track_uart_ms;
 static uint32_t g_next_track_oled_ms;
 static uint8_t g_track_bits;
 #endif
 
-#if (MOTOR_OPEN_LOOP_TEST == 0U) && (APP_MODE_PAN_TILT_DEBUG == 0U)
+#if (MOTOR_OPEN_LOOP_TEST == 0U) && (APP_MODE_PAN_TILT_DEBUG == 0U) && \
+    (APP_MODE_TASK1 == 0U)
 static void binary8_string(uint8_t value, char out[9])
 {
     uint8_t bit;
@@ -225,7 +231,8 @@ static void mpu_update_task(uint32_t now_ms)
 }
 #endif
 
-#if (MOTOR_OPEN_LOOP_TEST == 0U) && (APP_MODE_PAN_TILT_DEBUG == 0U)
+#if (MOTOR_OPEN_LOOP_TEST == 0U) && (APP_MODE_PAN_TILT_DEBUG == 0U) && \
+    (APP_MODE_TASK1 == 0U)
 static void track_update_task(uint32_t now_ms)
 {
     if ((int32_t)(now_ms - g_next_track_ms) < 0) {
@@ -370,7 +377,8 @@ int main(void)
     g_last_mpu_ms = now_ms;
     g_next_mpu_ms = now_ms + MPU_READ_MS;
 #endif
-#if (MOTOR_OPEN_LOOP_TEST == 0U) && (APP_MODE_PAN_TILT_DEBUG == 0U)
+#if (MOTOR_OPEN_LOOP_TEST == 0U) && (APP_MODE_PAN_TILT_DEBUG == 0U) && \
+    (APP_MODE_TASK1 == 0U)
     g_next_track_ms = now_ms + TRACK_READ_MS;
     g_next_track_uart_ms = now_ms + TRACK_UART_MS;
     g_next_track_oled_ms = now_ms + TRACK_TEST_OLED_MS;
@@ -418,7 +426,11 @@ int main(void)
         PanTiltDebug_Update(now_ms);
 #else
         mpu_update_task(now_ms);
+#if APP_MODE_TASK1
+        Track_DiagnosticUpdate(now_ms);
+#else
         track_update_task(now_ms);
+#endif
         key_update_task(now_ms);
         encoder_update_task(now_ms, &last_encoder_ms);
 

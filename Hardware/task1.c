@@ -3,6 +3,7 @@
 #include "MPU6050.h"
 #include "OLED.h"
 #include "debug_uart.h"
+#include "encoder.h"
 #include "key.h"
 #include "platform_time.h"
 #include "track.h"
@@ -12,8 +13,7 @@
 
 typedef enum {
     TASK1_TURN_FINISH_ANGLE = 0,
-    TASK1_TURN_FINISH_TIMEOUT,
-    TASK1_TURN_FINISH_LINE
+    TASK1_TURN_FINISH_TIMEOUT
 } Task1TurnFinishReason;
 
 typedef struct {
@@ -25,6 +25,8 @@ typedef struct {
     uint8_t line_lost;
     int8_t last_seen_side;
     int8_t line_search_dir;
+    int32_t pre_turn_left_start;
+    int32_t pre_turn_right_start;
     int16_t base_pwm;
     int16_t last_error;
     int16_t last_correction;
@@ -34,8 +36,11 @@ typedef struct {
     uint32_t pre_turn_start_ms;
     uint32_t pre_turn_until_ms;
     uint32_t turn_start_ms;
+    uint32_t turn_done_since_ms;
     uint32_t turn_settle_until_ms;
+    uint32_t post_turn_start_ms;
     uint32_t corner_ignore_until_ms;
+    uint32_t corner_latch_until_ms;
     uint32_t line_lost_start_ms;
     uint32_t last_log_ms;
     uint32_t last_oled_ms;
@@ -67,6 +72,28 @@ static int16_t Task1_ClampI16(int32_t value, int32_t min_value,
 static int16_t Task1_ClampPwm(int32_t pwm)
 {
     return Task1_ClampI16(pwm, TASK1_PWM_MIN, TASK1_PWM_MAX);
+}
+
+static int32_t Task1_AbsI32(int32_t value)
+{
+    if (value < 0) {
+        return -value;
+    }
+    return value;
+}
+
+static uint8_t Task1_CountBits8(uint8_t value)
+{
+    uint8_t count = 0U;
+
+    while (value != 0U) {
+        if ((value & 0x01U) != 0U) {
+            count++;
+        }
+        value >>= 1U;
+    }
+
+    return count;
 }
 
 static int16_t Task1_RoundFloatToI16(float value)
@@ -105,6 +132,8 @@ static const char *Task1_StateName(Task1State state)
             return "TURN";
         case TASK1_STATE_TURN_SETTLE:
             return "SETL";
+        case TASK1_STATE_POST_TURN_SEARCH:
+            return "SRCH";
         case TASK1_STATE_DONE:
             return "DONE";
         case TASK1_STATE_FAULT:
@@ -130,30 +159,94 @@ static float Task1_SignedAngleDeltaDeg(float current_deg, float start_deg)
     return Task1_NormalizeAngleDeg(current_deg - start_deg);
 }
 
+static float Task1_TurnYawDirection(void)
+{
+    float motor_direction = (TASK1_TURN_SIGN < 0) ? -1.0f : 1.0f;
+
+    return motor_direction * (float) TASK1_CCW_YAW_SIGN;
+}
+
 static void Task1_UpdateTurnAngles(float current_yaw)
 {
+    float target_abs = g_ctx.turn_target_abs_deg;
     float turned;
-    float remaining;
+
+    if (target_abs <= 0.0f) {
+        target_abs = (float) TASK1_TURN_TARGET_DEG;
+    }
 
     turned = Task1_SignedAngleDeltaDeg(current_yaw, g_ctx.turn_start_yaw);
-    turned *= (float) TASK1_CCW_YAW_SIGN;
     if (turned < 0.0f) {
         turned = -turned;
     }
-
-    remaining = Task1_SignedAngleDeltaDeg(g_ctx.turn_target_yaw,
-        current_yaw);
-    if (remaining < 0.0f) {
-        remaining = -remaining;
+    if (turned > target_abs) {
+        turned = target_abs;
     }
 
     g_ctx.turn_turned_deg = turned;
-    g_ctx.turn_remaining_deg = remaining;
+    g_ctx.turn_remaining_deg = target_abs - turned;
+}
+
+static int16_t Task1_CalcTurnPwm(void)
+{
+    float pwm_f;
+    int16_t pwm;
+
+    if (g_ctx.turn_remaining_deg > TASK1_TURN_SLOW_ZONE_DEG) {
+        return (int16_t) TASK1_TURN_PWM_MAX;
+    }
+
+    pwm_f = (float) TASK1_TURN_PWM_MIN +
+        (TASK1_TURN_KP * g_ctx.turn_remaining_deg);
+    pwm = Task1_RoundFloatToI16(pwm_f);
+
+    return Task1_ClampI16(pwm,
+        (int32_t) TASK1_TURN_PWM_MIN,
+        (int32_t) TASK1_TURN_PWM_MAX);
+}
+
+static uint8_t Task1_IsAllWhiteCornerCandidate(uint8_t bits)
+{
+    return ((bits == 0U) && (Track_GetLastI2cStatus() == 0U)) ? 1U : 0U;
 }
 
 static uint8_t Task1_IsCornerCandidate(uint8_t bits)
 {
-    return (bits == 0U) ? 1U : 0U;
+    uint8_t left_count = Task1_CountBits8(
+        (uint8_t)(bits & (uint8_t) TASK1_CORNER_LEFT_MASK));
+
+    if (Task1_IsAllWhiteCornerCandidate(bits) != 0U) {
+        return 1U;
+    }
+
+    if (left_count >= (uint8_t) TASK1_CORNER_LEFT_MIN_COUNT) {
+        return 1U;
+    }
+
+    return 0U;
+}
+
+static uint8_t Task1_UpdateCornerLatch(uint32_t now_ms, uint8_t bits,
+    uint8_t may_detect_corner)
+{
+    if (may_detect_corner == 0U) {
+        g_ctx.corner_latch_until_ms = 0U;
+        return 0U;
+    }
+
+    if (Task1_IsCornerCandidate(bits) != 0U) {
+        g_ctx.corner_latch_until_ms =
+            now_ms + TASK1_CORNER_CONFIRM_WINDOW_MS;
+        return 1U;
+    }
+
+    if ((g_ctx.corner_latch_until_ms != 0U) &&
+        ((int32_t)(g_ctx.corner_latch_until_ms - now_ms) > 0)) {
+        return 1U;
+    }
+
+    g_ctx.corner_latch_until_ms = 0U;
+    return 0U;
 }
 
 static uint8_t Task1_IsCenterStraight(uint8_t bits)
@@ -202,13 +295,36 @@ static void Task1_SetMotorBoth(int16_t left_pwm, int16_t right_pwm)
 
 static void Task1_SetSpinTurn(int16_t turn_pwm)
 {
-    /*
-     * Spin turn: both wheels rotate at the same time in opposite directions.
-     * TASK1_TURN_SIGN only selects clockwise/counter-clockwise physical turn.
-     */
     Task1_SetMotorBoth(
         (int16_t)(-TASK1_TURN_SIGN * turn_pwm),
         (int16_t)(TASK1_TURN_SIGN * turn_pwm));
+}
+
+static int32_t Task1_GetPreTurnTravelCounts(void)
+{
+    int32_t left_delta = Task1_AbsI32(
+        Encoder_GetCount(ENCODER_LEFT) - g_ctx.pre_turn_left_start);
+    int32_t right_delta = Task1_AbsI32(
+        Encoder_GetCount(ENCODER_RIGHT) - g_ctx.pre_turn_right_start);
+
+    return (left_delta + right_delta) / 2;
+}
+
+static uint8_t Task1_IsPreTurnDone(uint32_t now_ms)
+{
+    int32_t travel_counts = Task1_GetPreTurnTravelCounts();
+
+    if ((TASK1_PRE_TURN_ENCODER_COUNTS > 0L) &&
+        (travel_counts >= (int32_t) TASK1_PRE_TURN_ENCODER_COUNTS)) {
+        return 1U;
+    }
+
+    if ((g_ctx.pre_turn_until_ms != 0U) &&
+        ((int32_t)(now_ms - g_ctx.pre_turn_until_ms) >= 0)) {
+        return 1U;
+    }
+
+    return 0U;
 }
 
 static void Task1_StopAll(void)
@@ -216,6 +332,14 @@ static void Task1_StopAll(void)
     g_ctx.last_left_pwm = 0;
     g_ctx.last_right_pwm = 0;
     Motor_StopAll();
+}
+
+static void Task1_BrakeAll(void)
+{
+    g_ctx.last_left_pwm = 0;
+    g_ctx.last_right_pwm = 0;
+    Motor_Brake(MOTOR_LEFT);
+    Motor_Brake(MOTOR_RIGHT);
 }
 
 static const char *Task1_SearchSideName(int8_t side)
@@ -275,12 +399,12 @@ static void Task1_ApplyLineSearch(void)
     g_ctx.last_correction = 0;
     if (g_ctx.line_search_dir < 0) {
         Task1_SetMotorBoth(
-            (int16_t)(-TASK1_LINE_SEARCH_PWM_INNER),
+            (int16_t) TASK1_LINE_SEARCH_PWM_INNER,
             (int16_t) TASK1_LINE_SEARCH_PWM_OUTER);
     } else {
         Task1_SetMotorBoth(
             (int16_t) TASK1_LINE_SEARCH_PWM_OUTER,
-            (int16_t)(-TASK1_LINE_SEARCH_PWM_INNER));
+            (int16_t) TASK1_LINE_SEARCH_PWM_INNER);
     }
 }
 
@@ -316,8 +440,11 @@ static int16_t Task1_CalcLineCorrection(uint8_t bits)
 static void Task1_ApplyLineFollow(uint8_t bits)
 {
     int16_t correction = Task1_CalcLineCorrection(bits);
-    int16_t left_pwm = Task1_ClampPwm((int32_t) g_ctx.base_pwm - correction);
-    int16_t right_pwm = Task1_ClampPwm((int32_t) g_ctx.base_pwm + correction);
+    int16_t left_pwm;
+    int16_t right_pwm;
+
+    left_pwm = Task1_ClampPwm((int32_t) g_ctx.base_pwm - correction);
+    right_pwm = Task1_ClampPwm((int32_t) g_ctx.base_pwm + correction);
 
     Task1_SetMotorBoth(left_pwm, right_pwm);
 }
@@ -331,6 +458,8 @@ static void Task1_StartRun(uint32_t now_ms, uint8_t restart_by_key)
     g_ctx.line_lost = 0U;
     g_ctx.last_seen_side = 0;
     g_ctx.line_search_dir = Task1_DefaultSearchDir();
+    g_ctx.pre_turn_left_start = 0;
+    g_ctx.pre_turn_right_start = 0;
     g_ctx.base_pwm = TASK1_BASE_PWM_DEFAULT;
     g_ctx.last_error = 0;
     g_ctx.last_correction = 0;
@@ -338,8 +467,11 @@ static void Task1_StartRun(uint32_t now_ms, uint8_t restart_by_key)
     g_ctx.pre_turn_start_ms = 0U;
     g_ctx.pre_turn_until_ms = 0U;
     g_ctx.turn_start_ms = 0U;
+    g_ctx.turn_done_since_ms = 0U;
     g_ctx.turn_settle_until_ms = 0U;
+    g_ctx.post_turn_start_ms = 0U;
     g_ctx.corner_ignore_until_ms = now_ms + TASK1_CORNER_IGNORE_MS;
+    g_ctx.corner_latch_until_ms = 0U;
     g_ctx.line_lost_start_ms = now_ms;
     g_ctx.last_log_ms = 0U;
     g_ctx.last_oled_ms = 0U;
@@ -363,18 +495,24 @@ static void Task1_EnterStop(void)
     g_ctx.corner_confirm = 0U;
     g_ctx.line_lost = 0U;
     g_ctx.line_search_dir = Task1_DefaultSearchDir();
+    g_ctx.corner_latch_until_ms = 0U;
     Task1_StopAll();
 }
 
 static void Task1_StartPreTurnStraight(uint32_t now_ms)
 {
+    uint32_t timeout_ms = TASK1_PRE_TURN_TIMEOUT_MS;
+
     g_ctx.corner_confirm = 0U;
+    g_ctx.corner_latch_until_ms = 0U;
     g_ctx.last_error = 0;
     g_ctx.last_correction = 0;
     g_ctx.line_lost = 0U;
     g_ctx.line_search_dir = Task1_DefaultSearchDir();
+    g_ctx.pre_turn_left_start = Encoder_GetCount(ENCODER_LEFT);
+    g_ctx.pre_turn_right_start = Encoder_GetCount(ENCODER_RIGHT);
 
-    if (TASK1_PRE_TURN_STRAIGHT_MS == 0U) {
+    if ((TASK1_PRE_TURN_ENCODER_COUNTS <= 0L) && (timeout_ms == 0U)) {
         debug_print("[T1] corner detected -> turn immediately\r\n");
         Task1_StartTurn90(now_ms);
         return;
@@ -382,11 +520,13 @@ static void Task1_StartPreTurnStraight(uint32_t now_ms)
 
     g_ctx.state = TASK1_STATE_PRE_TURN_STRAIGHT;
     g_ctx.pre_turn_start_ms = now_ms;
-    g_ctx.pre_turn_until_ms = now_ms + TASK1_PRE_TURN_STRAIGHT_MS;
+    g_ctx.pre_turn_until_ms =
+        (timeout_ms == 0U) ? 0U : (now_ms + timeout_ms);
     Task1_SetMotorBoth(TASK1_PRE_TURN_PWM, TASK1_PRE_TURN_PWM);
 
-    debug_printf("[T1] corner detected -> pre straight ms=%u pwm=%d until=%lu\r\n",
-        (unsigned int) TASK1_PRE_TURN_STRAIGHT_MS,
+    debug_printf("[T1] corner detected -> pre straight counts=%ld timeout=%ums pwm=%d until=%lu\r\n",
+        (long) TASK1_PRE_TURN_ENCODER_COUNTS,
+        (unsigned int) timeout_ms,
         (int) TASK1_PRE_TURN_PWM,
         (unsigned long) g_ctx.pre_turn_until_ms);
 }
@@ -394,16 +534,17 @@ static void Task1_StartPreTurnStraight(uint32_t now_ms)
 static void Task1_StartTurn90(uint32_t now_ms)
 {
     float current_yaw = MPU6050_GetYaw();
+    float yaw_direction = Task1_TurnYawDirection();
     uint8_t corner_in_lap =
         (uint8_t)((g_ctx.corner_count % TASK1_CORNERS_PER_LAP) + 1U);
 
     g_ctx.state = TASK1_STATE_TURN_90;
     g_ctx.turn_start_ms = now_ms;
+    g_ctx.turn_done_since_ms = 0U;
     g_ctx.turn_start_yaw = current_yaw;
-    g_ctx.turn_target_abs_deg =
-        (float) corner_in_lap * (float) TASK1_TURN_TARGET_DEG;
+    g_ctx.turn_target_abs_deg = (float) TASK1_TURN_TARGET_DEG;
     g_ctx.turn_target_yaw = Task1_NormalizeAngleDeg(
-        (float) TASK1_CCW_YAW_SIGN * g_ctx.turn_target_abs_deg);
+        current_yaw + (yaw_direction * g_ctx.turn_target_abs_deg));
     g_ctx.turn_turned_deg = 0.0f;
     Task1_UpdateTurnAngles(current_yaw);
     g_ctx.last_error = 0;
@@ -424,8 +565,6 @@ static const char *Task1_TurnFinishReasonName(Task1TurnFinishReason reason)
             return "angle";
         case TASK1_TURN_FINISH_TIMEOUT:
             return "timeout";
-        case TASK1_TURN_FINISH_LINE:
-            return "line";
         default:
             return "unknown";
     }
@@ -478,6 +617,59 @@ static void Task1_FinishTurn(uint32_t now_ms, float current_yaw,
 
     if (g_ctx.corner_count >= TASK1_TARGET_CORNERS) {
         Task1_CompleteTask(now_ms);
+    }
+}
+
+static void Task1_ReturnToLineFollow(uint32_t now_ms, const char *reason)
+{
+    (void) now_ms;
+
+    g_ctx.state = TASK1_STATE_LINE_FOLLOW;
+    g_ctx.line_lost = 0U;
+    g_ctx.line_search_dir = Task1_DefaultSearchDir();
+    g_ctx.corner_confirm = 0U;
+    g_ctx.corner_latch_until_ms = 0U;
+    g_ctx.last_error = Track_GetLineError();
+    Task1_UpdateLastSeenSide(g_ctx.last_error);
+    g_ctx.last_correction = 0;
+
+    debug_printf("[T1] back to line follow reason=%s bits=0x%02X err=%d\r\n",
+        (reason != 0) ? reason : "unknown",
+        (unsigned int) Track_GetBlackBits(),
+        (int) g_ctx.last_error);
+}
+
+static void Task1_StartPostTurnSearch(uint32_t now_ms)
+{
+    g_ctx.state = TASK1_STATE_POST_TURN_SEARCH;
+    g_ctx.post_turn_start_ms = now_ms;
+    g_ctx.line_lost = 0U;
+    g_ctx.line_search_dir = Task1_DefaultSearchDir();
+    g_ctx.last_error = 0;
+    g_ctx.last_correction = 0;
+    Task1_SetMotorBoth(TASK1_POST_TURN_SEARCH_PWM,
+        TASK1_POST_TURN_SEARCH_PWM);
+
+    debug_printf("[T1] post turn search start pwm=%d\r\n",
+        (int) TASK1_POST_TURN_SEARCH_PWM);
+}
+
+static void Task1_UpdatePostTurnSearch(uint32_t now_ms, uint8_t bits)
+{
+    if (bits != 0U) {
+        Task1_ReturnToLineFollow(now_ms, "post-line");
+        return;
+    }
+
+    Task1_SetMotorBoth(TASK1_POST_TURN_SEARCH_PWM,
+        TASK1_POST_TURN_SEARCH_PWM);
+
+    if ((int32_t)(now_ms - g_ctx.last_log_ms) >= 0) {
+        debug_printf("[T1] post search bits=0x%02X elapsed=%lums pwm=%d\r\n",
+            (unsigned int) bits,
+            (unsigned long)(now_ms - g_ctx.post_turn_start_ms),
+            (int) TASK1_POST_TURN_SEARCH_PWM);
+        g_ctx.last_log_ms = now_ms + TASK1_DEBUG_LOG_PERIOD_MS;
     }
 }
 
@@ -563,22 +755,30 @@ static void Task1_LogConfig(void)
         (int) TASK1_LINE_SEARCH_PWM_OUTER,
         Task1_SearchSideName(Task1_DefaultSearchDir()),
         (int) TASK1_CENTER_ERR_THRESHOLD);
-    debug_printf("[T1CFG] corner mode=white confirm=%u pre=%ums ignore=%ums\r\n",
+    debug_printf("[T1CFG] corner mask=0x%02X min=%u confirm=%u latch=%ums white=1 ignore=%ums\r\n",
+        (unsigned int) TASK1_CORNER_LEFT_MASK,
+        (unsigned int) TASK1_CORNER_LEFT_MIN_COUNT,
         (unsigned int) TASK1_CORNER_CONFIRM_COUNT,
-        (unsigned int) TASK1_PRE_TURN_STRAIGHT_MS,
+        (unsigned int) TASK1_CORNER_CONFIRM_WINDOW_MS,
         (unsigned int) TASK1_CORNER_IGNORE_MS);
-    debug_printf("[T1CFG] turn absolute step=%.1f targets=90/180/270/360 done=%.1f fast=%d slow=%d sign=%d yaw_sign=%d timeout=%ums\r\n",
+    debug_printf("[T1CFG] pre counts=%ld timeout=%ums pwm=%d post_pwm=%d\r\n",
+        (long) TASK1_PRE_TURN_ENCODER_COUNTS,
+        (unsigned int) TASK1_PRE_TURN_TIMEOUT_MS,
+        (int) TASK1_PRE_TURN_PWM,
+        (int) TASK1_POST_TURN_SEARCH_PWM);
+    debug_printf("[T1CFG] turn dual-wheel step=%.1f done=%.1f hold=%ums kp=%.1f min=%d max=%d sign=%d yaw_sign=%d timeout=%ums\r\n",
         (float) TASK1_TURN_TARGET_DEG,
         (float) TASK1_TURN_DONE_DEG,
-        (int) TASK1_TURN_PWM_FAST,
-        (int) TASK1_TURN_PWM_SLOW,
+        (unsigned int) TASK1_TURN_DONE_HOLD_MS,
+        (float) TASK1_TURN_KP,
+        (int) TASK1_TURN_PWM_MIN,
+        (int) TASK1_TURN_PWM_MAX,
         (int) TASK1_TURN_SIGN,
         (int) TASK1_CCW_YAW_SIGN,
         (unsigned int) TASK1_TURN_TIMEOUT_MS);
-    debug_printf("[T1CFG] turn motor mode=spin lpwm=-sign*pwm rpwm=+sign*pwm\r\n");
-    debug_printf("[T1CFG] turn line_exit pair=X45/X56 mask=0x%02X min=%ums\r\n",
-        (unsigned int) TASK1_TURN_LINE_EXIT_MASK,
-        (unsigned int) TASK1_TURN_LINE_EXIT_MIN_MS);
+    debug_printf("[T1CFG] turn motor mode=spin lpwm=-sign*pwm rpwm=+sign*pwm slow_zone=%.1f\r\n",
+        (float) TASK1_TURN_SLOW_ZONE_DEG);
+    debug_printf("[T1CFG] post line detect any black bit\r\n");
 }
 
 static void Task1_LogLine(uint32_t now_ms, uint8_t bits,
@@ -629,9 +829,34 @@ static void Task1_LogTurn(uint32_t now_ms, uint8_t bits, float yaw,
 
 static void Task1_UpdateLineFollow(uint32_t now_ms, uint8_t bits)
 {
-    uint8_t corner_candidate = Task1_IsCornerCandidate(bits);
     uint8_t may_detect_corner =
         ((int32_t)(now_ms - g_ctx.corner_ignore_until_ms) >= 0) ? 1U : 0U;
+    uint8_t corner_candidate = Task1_UpdateCornerLatch(now_ms, bits,
+        may_detect_corner);
+    uint8_t all_white_corner = Task1_IsAllWhiteCornerCandidate(bits);
+
+    if ((corner_candidate != 0U) && (may_detect_corner != 0U)) {
+        if (g_ctx.corner_confirm < TASK1_CORNER_CONFIRM_COUNT) {
+            g_ctx.corner_confirm++;
+        }
+        if (g_ctx.corner_confirm >= TASK1_CORNER_CONFIRM_COUNT) {
+            if (all_white_corner != 0U) {
+                g_ctx.corner_confirm = 0U;
+                g_ctx.corner_latch_until_ms = 0U;
+                g_ctx.line_lost = 0U;
+                g_ctx.line_search_dir = Task1_DefaultSearchDir();
+                g_ctx.last_error = 0;
+                g_ctx.last_correction = 0;
+                debug_print("[T1] all-white corner -> turn immediately\r\n");
+                Task1_StartTurn90(now_ms);
+                return;
+            }
+            Task1_StartPreTurnStraight(now_ms);
+            return;
+        }
+    } else {
+        g_ctx.corner_confirm = 0U;
+    }
 
     if (bits == 0U) {
         if (g_ctx.line_lost == 0U) {
@@ -646,17 +871,8 @@ static void Task1_UpdateLineFollow(uint32_t now_ms, uint8_t bits)
         }
 
         if (may_detect_corner != 0U) {
-            if (g_ctx.corner_confirm < TASK1_CORNER_CONFIRM_COUNT) {
-                g_ctx.corner_confirm++;
-            }
-            if (g_ctx.corner_confirm >= TASK1_CORNER_CONFIRM_COUNT) {
-                Task1_StartPreTurnStraight(now_ms);
-                return;
-            }
-
             Task1_SetMotorBoth(TASK1_LINE_LOST_PWM, TASK1_LINE_LOST_PWM);
         } else {
-            g_ctx.corner_confirm = 0U;
             Task1_ApplyLineSearch();
         }
         Task1_LogLine(now_ms, bits, corner_candidate);
@@ -674,19 +890,6 @@ static void Task1_UpdateLineFollow(uint32_t now_ms, uint8_t bits)
         g_ctx.line_search_dir = Task1_DefaultSearchDir();
     }
 
-    if ((corner_candidate != 0U) && (may_detect_corner != 0U)) {
-        if (g_ctx.corner_confirm < TASK1_CORNER_CONFIRM_COUNT) {
-            g_ctx.corner_confirm++;
-        }
-    } else {
-        g_ctx.corner_confirm = 0U;
-    }
-
-    if (g_ctx.corner_confirm >= TASK1_CORNER_CONFIRM_COUNT) {
-        Task1_StartPreTurnStraight(now_ms);
-        return;
-    }
-
     Task1_ApplyLineFollow(bits);
     Task1_LogLine(now_ms, bits, corner_candidate);
 }
@@ -699,24 +902,26 @@ static void Task1_UpdateTurn90(uint32_t now_ms, uint8_t bits)
 
     Task1_UpdateTurnAngles(yaw);
 
-    if ((elapsed_ms >= TASK1_TURN_LINE_EXIT_MIN_MS) &&
-        (Task1_IsTurnLineDetected(bits) != 0U)) {
-        Task1_FinishTurn(now_ms, yaw, TASK1_TURN_FINISH_LINE);
-        return;
-    }
-
     if (g_ctx.turn_remaining_deg <= TASK1_TURN_DONE_DEG) {
-        Task1_FinishTurn(now_ms, yaw, TASK1_TURN_FINISH_ANGLE);
+        if (g_ctx.turn_done_since_ms == 0U) {
+            g_ctx.turn_done_since_ms = now_ms;
+        }
+        Task1_BrakeAll();
+        if ((uint32_t)(now_ms - g_ctx.turn_done_since_ms) >=
+            TASK1_TURN_DONE_HOLD_MS) {
+            Task1_FinishTurn(now_ms, yaw, TASK1_TURN_FINISH_ANGLE);
+        }
+        Task1_LogTurn(now_ms, bits, yaw, 0);
         return;
     }
+    g_ctx.turn_done_since_ms = 0U;
 
     if (elapsed_ms >= TASK1_TURN_TIMEOUT_MS) {
         Task1_FinishTurn(now_ms, yaw, TASK1_TURN_FINISH_TIMEOUT);
         return;
     }
 
-    turn_pwm = (g_ctx.turn_remaining_deg > TASK1_TURN_SLOW_ZONE_DEG) ?
-        TASK1_TURN_PWM_FAST : TASK1_TURN_PWM_SLOW;
+    turn_pwm = Task1_CalcTurnPwm();
     Task1_SetSpinTurn(turn_pwm);
     Task1_LogTurn(now_ms, bits, yaw, turn_pwm);
 }
@@ -744,6 +949,7 @@ void Task1_Init(void)
     g_ctx.line_lost_start_ms = now_ms;
 
     Motor_Init();
+    Encoder_Init();
     Key_Init();
     Track_Init();
     Task1_StopAll();
@@ -792,9 +998,10 @@ void Task1_Update(uint32_t now_ms)
     if (g_ctx.state == TASK1_STATE_LINE_FOLLOW) {
         Task1_UpdateLineFollow(now_ms, bits);
     } else if (g_ctx.state == TASK1_STATE_PRE_TURN_STRAIGHT) {
-        if ((int32_t)(now_ms - g_ctx.pre_turn_until_ms) >= 0) {
-            debug_printf("[T1] pre straight done elapsed=%lums\r\n",
-                (unsigned long)(now_ms - g_ctx.pre_turn_start_ms));
+        if (Task1_IsPreTurnDone(now_ms) != 0U) {
+            debug_printf("[T1] pre straight done elapsed=%lums counts=%ld\r\n",
+                (unsigned long)(now_ms - g_ctx.pre_turn_start_ms),
+                (long) Task1_GetPreTurnTravelCounts());
             Task1_StartTurn90(now_ms);
         } else {
             Task1_SetMotorBoth(TASK1_PRE_TURN_PWM, TASK1_PRE_TURN_PWM);
@@ -804,15 +1011,17 @@ void Task1_Update(uint32_t now_ms)
     } else if (g_ctx.state == TASK1_STATE_TURN_SETTLE) {
         if ((int32_t)(now_ms - g_ctx.turn_settle_until_ms) >= 0) {
             if (g_ctx.state != TASK1_STATE_DONE) {
-                g_ctx.state = TASK1_STATE_LINE_FOLLOW;
-                g_ctx.last_error = Track_GetLineError();
-                Task1_UpdateLastSeenSide(g_ctx.last_error);
-                g_ctx.last_correction = 0;
-                debug_print("[T1] back to line follow\r\n");
+                if (bits != 0U) {
+                    Task1_ReturnToLineFollow(now_ms, "settle-line");
+                } else {
+                    Task1_StartPostTurnSearch(now_ms);
+                }
             }
         } else {
             Task1_StopAll();
         }
+    } else if (g_ctx.state == TASK1_STATE_POST_TURN_SEARCH) {
+        Task1_UpdatePostTurnSearch(now_ms, bits);
     }
 
     if ((int32_t)(now_ms - g_ctx.last_oled_ms) >= 0) {
