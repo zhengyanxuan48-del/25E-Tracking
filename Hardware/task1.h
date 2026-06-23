@@ -12,7 +12,7 @@
 // ===== Task1 tunable parameters =====
 
 #ifndef TASK1_OLED_CODE
-#define TASK1_OLED_CODE (42U) // 调试参数：OLED 显示代码号，每次修改后加 1，便于确认烧录版本
+#define TASK1_OLED_CODE (43U) // 调试参数：OLED 显示代码号，每次修改后加 1，便于确认烧录版本
 #endif
 
 #ifndef TASK1_BASE_PWM_DEFAULT
@@ -32,7 +32,7 @@
 #endif
 
 #ifndef TASK1_CORRECTION_MAX
-#define TASK1_CORRECTION_MAX (320) // 调试参数：循迹最大 PWM 差值，用于限制左右轮差速
+#define TASK1_CORRECTION_MAX (280) // 调试参数：循迹最大 PWM 差值，用于限制左右轮差速
 #endif
 
 #ifndef TASK1_LINE_LOST_PWM
@@ -88,7 +88,7 @@
 #endif
 
 #ifndef TASK1_CORNER_IGNORE_MS
-#define TASK1_CORNER_IGNORE_MS (2500U) // 调试参数：转弯完成后直角屏蔽时间，防止重复计数且避免错过下一角
+#define TASK1_CORNER_IGNORE_MS (3000U) // 调试参数：转弯完成后直角屏蔽时间，防止重复计数且避免错过下一角
 #endif
 
 #ifndef TASK1_CENTER_STRAIGHT_MASK
@@ -100,7 +100,7 @@
 #endif
 
 #ifndef TASK1_PRE_TURN_ENCODER_COUNTS
-#define TASK1_PRE_TURN_ENCODER_COUNTS (100L) // 调试参数：直角确认后继续直行的编码器平均脉冲数
+#define TASK1_PRE_TURN_ENCODER_COUNTS (50L) // 调试参数：直角确认后继续直行的编码器平均脉冲数
 #endif
 
 #ifndef TASK1_PRE_TURN_TIMEOUT_MS
@@ -120,7 +120,7 @@
 #endif
 
 #ifndef TASK1_TURN_TARGET_DEG
-#define TASK1_TURN_TARGET_DEG (80.0f) // 调试参数：每个直角目标角度，正方形固定为 90 度
+#define TASK1_TURN_TARGET_DEG (75.0f) // 调试参数：每个直角目标角度，正方形固定为 90 度
 #endif
 
 #ifndef TASK1_TURN_DONE_DEG
@@ -128,7 +128,7 @@
 #endif
 
 #ifndef TASK1_TURN_DONE_HOLD_MS
-#define TASK1_TURN_DONE_HOLD_MS (80U) // 调试参数：到角后刹车保持确认时间，防止惯性过冲和角度采样抖动
+#define TASK1_TURN_DONE_HOLD_MS (20U) // 调试参数：到角后刹车保持确认时间，防止惯性过冲和角度采样抖动
 #endif
 
 #ifndef TASK1_TURN_KP
@@ -136,11 +136,11 @@
 #endif
 
 #ifndef TASK1_TURN_PWM_MIN
-#define TASK1_TURN_PWM_MIN (250) // 调试参数：角度环最小双轮转向 PWM，防止接近目标时电机停转
+#define TASK1_TURN_PWM_MIN (120) // 调试参数：角度环最小双轮转向 PWM，防止接近目标时电机停转
 #endif
 
 #ifndef TASK1_TURN_PWM_MAX
-#define TASK1_TURN_PWM_MAX (650) // 调试参数：角度环最大双轮转向 PWM，降低过冲提高 90 度稳定性
+#define TASK1_TURN_PWM_MAX (700) // 调试参数：角度环最大双轮转向 PWM，降低过冲提高 90 度稳定性
 #endif
 
 #ifndef TASK1_TURN_SLOW_ZONE_DEG

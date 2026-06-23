@@ -226,6 +226,21 @@ static uint8_t Task1_IsCornerCandidate(uint8_t bits)
     return 0U;
 }
 
+static uint8_t Task1_IsCornerIgnoreActive(uint32_t now_ms)
+{
+    return ((int32_t)(now_ms - g_ctx.corner_ignore_until_ms) < 0) ?
+        1U : 0U;
+}
+
+static uint32_t Task1_GetCornerIgnoreLeftMs(uint32_t now_ms)
+{
+    if (Task1_IsCornerIgnoreActive(now_ms) == 0U) {
+        return 0U;
+    }
+
+    return g_ctx.corner_ignore_until_ms - now_ms;
+}
+
 static uint8_t Task1_UpdateCornerLatch(uint32_t now_ms, uint8_t bits,
     uint8_t may_detect_corner)
 {
@@ -622,7 +637,7 @@ static void Task1_FinishTurn(uint32_t now_ms, float current_yaw,
 
 static void Task1_ReturnToLineFollow(uint32_t now_ms, const char *reason)
 {
-    (void) now_ms;
+    uint32_t ignore_left_ms = Task1_GetCornerIgnoreLeftMs(now_ms);
 
     g_ctx.state = TASK1_STATE_LINE_FOLLOW;
     g_ctx.line_lost = 0U;
@@ -633,10 +648,11 @@ static void Task1_ReturnToLineFollow(uint32_t now_ms, const char *reason)
     Task1_UpdateLastSeenSide(g_ctx.last_error);
     g_ctx.last_correction = 0;
 
-    debug_printf("[T1] back to line follow reason=%s bits=0x%02X err=%d\r\n",
+    debug_printf("[T1] back to line follow reason=%s bits=0x%02X err=%d ignore_left=%lums\r\n",
         (reason != 0) ? reason : "unknown",
         (unsigned int) Track_GetBlackBits(),
-        (int) g_ctx.last_error);
+        (int) g_ctx.last_error,
+        (unsigned long) ignore_left_ms);
 }
 
 static void Task1_StartPostTurnSearch(uint32_t now_ms)
@@ -830,7 +846,7 @@ static void Task1_LogTurn(uint32_t now_ms, uint8_t bits, float yaw,
 static void Task1_UpdateLineFollow(uint32_t now_ms, uint8_t bits)
 {
     uint8_t may_detect_corner =
-        ((int32_t)(now_ms - g_ctx.corner_ignore_until_ms) >= 0) ? 1U : 0U;
+        (Task1_IsCornerIgnoreActive(now_ms) == 0U) ? 1U : 0U;
     uint8_t corner_candidate = Task1_UpdateCornerLatch(now_ms, bits,
         may_detect_corner);
     uint8_t all_white_corner = Task1_IsAllWhiteCornerCandidate(bits);
