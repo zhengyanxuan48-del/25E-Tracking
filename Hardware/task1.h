@@ -12,27 +12,27 @@
 // ===== Task1 tunable parameters =====
 
 #ifndef TASK1_OLED_CODE
-#define TASK1_OLED_CODE (43U) // 调试参数：OLED 显示代码号，每次修改后加 1，便于确认烧录版本
+#define TASK1_OLED_CODE (48U) // 调试参数：OLED 显示代码号，每次修改后加 1，便于确认烧录版本
 #endif
 
 #ifndef TASK1_BASE_PWM_DEFAULT
-#define TASK1_BASE_PWM_DEFAULT (850) // 调试参数：直线循迹基础 PWM，数值越大直线越快
+#define TASK1_BASE_PWM_DEFAULT (MOTOR_PWM_MAX) // 调试参数：直线循迹基础 PWM，数值越大直线越快
 #endif
 
 #ifndef TASK1_STEER_KP
-#define TASK1_STEER_KP (45.0f) // 调试参数：循迹比例系数，用于控制偏差响应强度
+#define TASK1_STEER_KP (20.0f) // 调试参数：循迹比例系数，用于控制偏差响应强度
 #endif
 
 #ifndef TASK1_STEER_KD
-#define TASK1_STEER_KD (15.0f) // 调试参数：循迹微分系数，用于抑制高速循迹抖动
+#define TASK1_STEER_KD (18.0f) // 调试参数：循迹微分系数，用于抑制高速循迹抖动
 #endif
 
 #ifndef TASK1_STEER_SIGN
-#define TASK1_STEER_SIGN (+1) // 调试参数：循迹修正方向，越纠越偏时改为 -1
+#define TASK1_STEER_SIGN (-1) // 调试参数：循迹修正方向，越纠越偏时改为 -1
 #endif
 
 #ifndef TASK1_CORRECTION_MAX
-#define TASK1_CORRECTION_MAX (280) // 调试参数：循迹最大 PWM 差值，用于限制左右轮差速
+#define TASK1_CORRECTION_MAX (240) // 调试参数：循迹最大 PWM 差值，用于限制左右轮差速
 #endif
 
 #ifndef TASK1_LINE_LOST_PWM
@@ -40,7 +40,7 @@
 #endif
 
 #ifndef TASK1_LINE_SEARCH_PWM_INNER
-#define TASK1_LINE_SEARCH_PWM_INNER (550) // 调试参数：丢线找线内侧轮 PWM，保持正向行驶并向丢线方向靠
+#define TASK1_LINE_SEARCH_PWM_INNER (350) // 调试参数：丢线找线内侧轮 PWM，保持正向行驶并向丢线方向靠
 #endif
 
 #ifndef TASK1_LINE_SEARCH_PWM_OUTER
@@ -72,15 +72,7 @@
 #endif
 
 #ifndef TASK1_CORNER_CONFIRM_COUNT
-#define TASK1_CORNER_CONFIRM_COUNT (1U) // 调试参数：直角候选确认次数，用于过滤单次误触发
-#endif
-
-#ifndef TASK1_CORNER_LEFT_MASK
-#define TASK1_CORNER_LEFT_MASK (0x1FU) // 调试参数：直角识别通道掩码，bit0~bit4 对应 X1~X5
-#endif
-
-#ifndef TASK1_CORNER_LEFT_MIN_COUNT
-#define TASK1_CORNER_LEFT_MIN_COUNT (4U) // 调试参数：X1~X5 至少命中数量，达到 4 路才判定直角
+#define TASK1_CORNER_CONFIRM_COUNT (2U) // 调试参数：直角候选确认次数，用于过滤单次误触发
 #endif
 
 #ifndef TASK1_CORNER_CONFIRM_WINDOW_MS
@@ -88,7 +80,7 @@
 #endif
 
 #ifndef TASK1_CORNER_IGNORE_MS
-#define TASK1_CORNER_IGNORE_MS (3000U) // 调试参数：转弯完成后直角屏蔽时间，防止重复计数且避免错过下一角
+#define TASK1_CORNER_IGNORE_MS (2700U) // 调试参数：转弯完成后直角屏蔽时间，防止重复计数且避免错过下一角
 #endif
 
 #ifndef TASK1_CENTER_STRAIGHT_MASK
@@ -100,7 +92,7 @@
 #endif
 
 #ifndef TASK1_PRE_TURN_ENCODER_COUNTS
-#define TASK1_PRE_TURN_ENCODER_COUNTS (50L) // 调试参数：直角确认后继续直行的编码器平均脉冲数
+#define TASK1_PRE_TURN_ENCODER_COUNTS (0L) // 调试参数：直角确认后继续直行的编码器平均脉冲数
 #endif
 
 #ifndef TASK1_PRE_TURN_TIMEOUT_MS
@@ -108,7 +100,7 @@
 #endif
 
 #ifndef TASK1_PRE_TURN_PWM
-#define TASK1_PRE_TURN_PWM (600) // 调试参数：直角确认后前探直行 PWM
+#define TASK1_PRE_TURN_PWM (100) // 调试参数：直角确认后前探直行 PWM
 #endif
 
 #ifndef TASK1_CCW_YAW_SIGN
@@ -116,11 +108,11 @@
 #endif
 
 #ifndef TASK1_TURN_SIGN
-#define TASK1_TURN_SIGN (-1) // 调试参数：双轮原地转向方向，实际转向反了只改成 +1
+#define TASK1_TURN_SIGN (+1) // 调试参数：双轮原地转向方向，实际转向反了只改成 +1
 #endif
 
 #ifndef TASK1_TURN_TARGET_DEG
-#define TASK1_TURN_TARGET_DEG (75.0f) // 调试参数：每个直角目标角度，正方形固定为 90 度
+#define TASK1_TURN_TARGET_DEG (85.0f) // 调试参数：每个直角目标角度，正方形固定为 90 度
 #endif
 
 #ifndef TASK1_TURN_DONE_DEG
@@ -128,7 +120,7 @@
 #endif
 
 #ifndef TASK1_TURN_DONE_HOLD_MS
-#define TASK1_TURN_DONE_HOLD_MS (20U) // 调试参数：到角后刹车保持确认时间，防止惯性过冲和角度采样抖动
+#define TASK1_TURN_DONE_HOLD_MS (0U) // 调试参数：到角后刹车保持确认时间，防止惯性过冲和角度采样抖动
 #endif
 
 #ifndef TASK1_TURN_KP
@@ -136,15 +128,15 @@
 #endif
 
 #ifndef TASK1_TURN_PWM_MIN
-#define TASK1_TURN_PWM_MIN (120) // 调试参数：角度环最小双轮转向 PWM，防止接近目标时电机停转
+#define TASK1_TURN_PWM_MIN (180) // 调试参数：角度环最小双轮转向 PWM，防止接近目标时电机停转
 #endif
 
 #ifndef TASK1_TURN_PWM_MAX
-#define TASK1_TURN_PWM_MAX (700) // 调试参数：角度环最大双轮转向 PWM，降低过冲提高 90 度稳定性
+#define TASK1_TURN_PWM_MAX (500) // 调试参数：角度环最大双轮转向 PWM，降低过冲提高 90 度稳定性
 #endif
 
 #ifndef TASK1_TURN_SLOW_ZONE_DEG
-#define TASK1_TURN_SLOW_ZONE_DEG (40.0f) // 调试参数：剩余角小于该值进入低速比例转向区
+#define TASK1_TURN_SLOW_ZONE_DEG (45.0f) // 调试参数：剩余角小于该值进入低速比例转向区
 #endif
 
 #ifndef TASK1_TURN_TIMEOUT_MS
@@ -153,6 +145,10 @@
 
 #ifndef TASK1_TURN_SETTLE_MS
 #define TASK1_TURN_SETTLE_MS (0U) // 调试参数：转向完成后的额外停稳时间，角度保持已完成时设 0 以快速切回循迹
+#endif
+
+#ifndef TASK1_TURN_LINE_STOP_MS
+#define TASK1_TURN_LINE_STOP_MS (50U) // 调试参数：转向中识别到黑线后的停止时间，停止结束后再切入循迹
 #endif
 
 #ifndef TASK1_POST_TURN_SEARCH_PWM
@@ -176,7 +172,7 @@
 #endif
 
 #ifndef TASK1_DEBUG_LOG_PERIOD_MS
-#define TASK1_DEBUG_LOG_PERIOD_MS (50U) // 调试参数：LINE/SRCH 状态 UART 日志周期
+#define TASK1_DEBUG_LOG_PERIOD_MS (40U) // 调试参数：LINE/SRCH 状态 UART 日志周期
 #endif
 
 #ifndef TASK1_TURN_LOG_PERIOD_MS
@@ -194,13 +190,10 @@ typedef enum {
     TASK1_STATE_TURN_90,
     TASK1_STATE_TURN_SETTLE,
     TASK1_STATE_POST_TURN_SEARCH,
-    TASK1_STATE_DONE,
-    TASK1_STATE_FAULT
+    TASK1_STATE_DONE
 } Task1State;
 
 void Task1_Init(void);
 void Task1_Update(uint32_t now_ms);
-void Task1_SetBaseSpeed(int16_t pwm);
-uint8_t Task1_IsDone(void);
 
 #endif /* HARDWARE_TASK1_H */

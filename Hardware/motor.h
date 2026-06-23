@@ -8,11 +8,11 @@ extern "C" {
 #endif
 
 #ifndef MOTOR_LEFT_REVERSE
-#define MOTOR_LEFT_REVERSE   (1) /* Positive PWM should drive left wheel forward. */
+#define MOTOR_LEFT_REVERSE   (0) /* Positive PWM should drive left wheel forward. */
 #endif
 
 #ifndef MOTOR_RIGHT_REVERSE
-#define MOTOR_RIGHT_REVERSE  (1) /* Positive PWM should drive right wheel forward. */
+#define MOTOR_RIGHT_REVERSE  (0) /* Positive PWM should drive right wheel forward. */
 #endif
 
 #define MOTOR_PWM_MIN        (-1000)
