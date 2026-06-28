@@ -12,7 +12,7 @@
 // ===== Task1 tunable parameters =====
 
 #ifndef TASK1_OLED_CODE
-#define TASK1_OLED_CODE (48U) // 调试参数：OLED 显示代码号，每次修改后加 1，便于确认烧录版本
+#define TASK1_OLED_CODE (49U) // 调试参数：OLED 显示代码号，每次修改后加 1，便于确认烧录版本
 #endif
 
 #ifndef TASK1_BASE_PWM_DEFAULT
@@ -32,7 +32,7 @@
 #endif
 
 #ifndef TASK1_CORRECTION_MAX
-#define TASK1_CORRECTION_MAX (240) // 调试参数：循迹最大 PWM 差值，用于限制左右轮差速
+#define TASK1_CORRECTION_MAX (160) // 调试参数：循迹最大 PWM 差值，用于限制左右轮差速
 #endif
 
 #ifndef TASK1_LINE_LOST_PWM
@@ -72,7 +72,7 @@
 #endif
 
 #ifndef TASK1_CORNER_CONFIRM_COUNT
-#define TASK1_CORNER_CONFIRM_COUNT (2U) // 调试参数：直角候选确认次数，用于过滤单次误触发
+#define TASK1_CORNER_CONFIRM_COUNT (1U) // 调试参数：直角候选确认次数，用于过滤单次误触发
 #endif
 
 #ifndef TASK1_CORNER_CONFIRM_WINDOW_MS
@@ -80,7 +80,7 @@
 #endif
 
 #ifndef TASK1_CORNER_IGNORE_MS
-#define TASK1_CORNER_IGNORE_MS (2700U) // 调试参数：转弯完成后直角屏蔽时间，防止重复计数且避免错过下一角
+#define TASK1_CORNER_IGNORE_MS (2500U) // 调试参数：转弯完成后直角屏蔽时间，防止重复计数且避免错过下一角
 #endif
 
 #ifndef TASK1_CENTER_STRAIGHT_MASK
@@ -100,7 +100,7 @@
 #endif
 
 #ifndef TASK1_PRE_TURN_PWM
-#define TASK1_PRE_TURN_PWM (100) // 调试参数：直角确认后前探直行 PWM
+#define TASK1_PRE_TURN_PWM (0) // 调试参数：直角确认后前探直行 PWM
 #endif
 
 #ifndef TASK1_CCW_YAW_SIGN
@@ -112,7 +112,7 @@
 #endif
 
 #ifndef TASK1_TURN_TARGET_DEG
-#define TASK1_TURN_TARGET_DEG (85.0f) // 调试参数：每个直角目标角度，正方形固定为 90 度
+#define TASK1_TURN_TARGET_DEG (75.0f) // 调试参数：每个直角目标角度，正方形固定为 90 度
 #endif
 
 #ifndef TASK1_TURN_DONE_DEG
@@ -124,7 +124,7 @@
 #endif
 
 #ifndef TASK1_TURN_KP
-#define TASK1_TURN_KP (8.0f) // 调试参数：90 度转向角度环比例系数，越大转向响应越强
+#define TASK1_TURN_KP (12.0f) // 调试参数：90 度转向角度环比例系数，越大转向响应越强
 #endif
 
 #ifndef TASK1_TURN_PWM_MIN
@@ -132,11 +132,11 @@
 #endif
 
 #ifndef TASK1_TURN_PWM_MAX
-#define TASK1_TURN_PWM_MAX (500) // 调试参数：角度环最大双轮转向 PWM，降低过冲提高 90 度稳定性
+#define TASK1_TURN_PWM_MAX (550) // 调试参数：角度环最大双轮转向 PWM，降低过冲提高 90 度稳定性
 #endif
 
 #ifndef TASK1_TURN_SLOW_ZONE_DEG
-#define TASK1_TURN_SLOW_ZONE_DEG (45.0f) // 调试参数：剩余角小于该值进入低速比例转向区
+#define TASK1_TURN_SLOW_ZONE_DEG (35.0f) // 调试参数：剩余角小于该值进入低速比例转向区
 #endif
 
 #ifndef TASK1_TURN_TIMEOUT_MS
@@ -148,11 +148,15 @@
 #endif
 
 #ifndef TASK1_TURN_LINE_STOP_MS
-#define TASK1_TURN_LINE_STOP_MS (50U) // 调试参数：转向中识别到黑线后的停止时间，停止结束后再切入循迹
+#define TASK1_TURN_LINE_STOP_MS (30U) // 调试参数：转向中识别到黑线后的停止时间，停止结束后再切入循迹
+#endif
+
+#ifndef TASK1_TURN_LINE_DETECT_MASK
+#define TASK1_TURN_LINE_DETECT_MASK (0x7FU) // 调试参数：转向中用于识别切回循迹黑线的通道掩码，0x7F 对应 X1~X7
 #endif
 
 #ifndef TASK1_POST_TURN_SEARCH_PWM
-#define TASK1_POST_TURN_SEARCH_PWM (700) // 调试参数：90 度转完后未找到黑线时保持直行找线的 PWM
+#define TASK1_POST_TURN_SEARCH_PWM (900) // 调试参数：90 度转完后未找到黑线时保持直行找线的 PWM
 #endif
 
 #ifndef TASK1_COUNT_TIMEOUT_TURN
@@ -164,7 +168,7 @@
 #endif
 
 #ifndef TASK1_TARGET_LAPS
-#define TASK1_TARGET_LAPS (2U) // 调试参数：目标圈数，当前题目设为 2 圈
+#define TASK1_TARGET_LAPS (4U) // 调试参数：目标圈数，当前题目设为 2 圈
 #endif
 
 #ifndef TASK1_TARGET_CORNERS

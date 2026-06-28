@@ -236,7 +236,8 @@ static uint8_t Task1_IsCenterStraight(uint8_t bits)
 
 static uint8_t Task1_IsTurnLineDetected(uint8_t bits)
 {
-    return ((bits & 0x7EU) != 0U) ? 1U : 0U; /* X2~X7 */
+    return ((bits & (uint8_t) TASK1_TURN_LINE_DETECT_MASK) != 0U) ?
+        1U : 0U;
 }
 
 static uint8_t Task1_ReadTrackSample(uint32_t now_ms)
@@ -459,7 +460,7 @@ static void Task1_StartRun(uint32_t now_ms, uint8_t restart_by_key)
     Task1_StopAll();
 
     debug_print((restart_by_key != 0U) ?
-        "[T1] restart by KEY1\r\n" : "[T1] auto start\r\n");
+        "[T1] restart by KEY1\r\n" : "[T1] start\r\n");
 }
 
 static void Task1_EnterStop(void)
@@ -778,6 +779,8 @@ static void Task1_LogConfig(void)
         (unsigned int) TASK1_TURN_TIMEOUT_MS);
     debug_printf("[T1CFG] turn motor mode=spin lpwm=-sign*pwm rpwm=+sign*pwm slow_zone=%.1f\r\n",
         (float) TASK1_TURN_SLOW_ZONE_DEG);
+    debug_printf("[T1CFG] turn line detect mask=0x%02X\r\n",
+        (unsigned int) TASK1_TURN_LINE_DETECT_MASK);
     debug_printf("[T1CFG] post line detect any black bit\r\n");
 }
 
@@ -943,7 +946,7 @@ void Task1_Init(void)
 
     g_ctx.initialized = 1U;
     Task1_LogConfig();
-    Task1_StartRun(now_ms, 0U);
+    debug_print("[T1] wait KEY1 start\r\n");
 }
 
 void Task1_Update(uint32_t now_ms)
